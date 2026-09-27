@@ -60,3 +60,11 @@
 - 固定启用 Radiant，忽略旧安装中关闭玻璃效果的偏好；保留明暗模式选择。
 - 执行 `gradlew.bat :app:assembleDebug`，编译打包成功。
 - 本次未运行自动化测试，未安装或操作手机。同步调整了已有静音用例；行为与视觉手测由用户完成。
+
+## 1.1.4 MT 文件选择与作品导入
+
+- 工作室导入、作品页右上角加号及空作品页面共用导入流程，优先定向调用 MT 管理器，未安装或不可调用时使用系统文档选择器。
+- 读取已安装的 MT 2.26.8 包声明并查询系统解析结果，确认 `bin.mt.plus` 支持 `ACTION_GET_CONTENT` + `CATEGORY_OPENABLE`；使用包名解析，不硬编码混淆 Activity 名。
+- 支持单文件 data URI / ClipData；只在返回持久读取授权时保留权限，将临时读取 URI 传递给导入服务；兼容不提供文件名查询的内容提供者。
+- `gradlew.bat :app:assembleDebug` 成功；已覆盖安装并确认 1.1.4 / versionCode 6。
+- 未运行文件选择 UI 手测或自动化测试。工作区同期出现的 RadiantTheme / StaticGlassBackdrop 修改属于其他工作，未纳入本次导入功能提交。

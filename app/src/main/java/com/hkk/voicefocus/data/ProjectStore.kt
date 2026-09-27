@@ -32,9 +32,13 @@ class ProjectStore(context: Context) {
     fun stem(p: Project, id: String) = File(folder(p.id), "$id.f32")
 
     fun import(context: Context, uri: Uri, check: () -> Unit = {}): Project {
-        var name = "音频"
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-            if (it.moveToFirst()) name = it.getString(0) ?: name
+        var name = if (uri.scheme == "file") uri.path?.let { File(it).name } ?: "音频" else "音频"
+        // Some third-party providers expose a stream but no OpenableColumns metadata.
+        runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                val column = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (column >= 0 && it.moveToFirst()) name = it.getString(column)?.takeIf { value -> value.isNotBlank() } ?: name
+            }
         }
         val p = Project(UUID.randomUUID().toString(), name)
         folder(p.id).mkdirs()

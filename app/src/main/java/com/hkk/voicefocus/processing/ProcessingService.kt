@@ -189,8 +189,14 @@ class ProcessingService : Service() {
     override fun onDestroy() { cancel(); scope.cancel(); super.onDestroy() }
     companion object {
         fun start(context: Context, action: String, id: String? = null, uri: Uri? = null, format: String? = null) {
-            ContextCompat.startForegroundService(context, Intent(context, ProcessingService::class.java).setAction(action)
-                .putExtra("id", id).putExtra("uri", uri?.toString()).putExtra("format", format))
+            val intent = Intent(context, ProcessingService::class.java).setAction(action)
+                .putExtra("id", id).putExtra("uri", uri?.toString()).putExtra("format", format)
+            if (action in listOf("import", "importModel") && uri?.scheme == "content") {
+                // GET_CONTENT grants can be temporary. Propagate the selected URI to the copy service.
+                intent.clipData = ClipData.newRawUri("import", uri)
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ContextCompat.startForegroundService(context, intent)
         }
         fun cancel(context: Context) { context.startService(Intent(context, ProcessingService::class.java).setAction("cancel")) }
     }

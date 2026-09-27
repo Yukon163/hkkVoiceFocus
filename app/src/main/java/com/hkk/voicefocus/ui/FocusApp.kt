@@ -2,6 +2,7 @@
 package com.hkk.voicefocus.ui
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -87,10 +88,28 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
         ProcessingService.start(context, action, id, uri, format)
     }
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            tab = 0; start("import", uri = uri)
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val uri = MediaImportPicker.selectedUri(result.data)
+            if (uri != null) {
+                val flags = result.data?.flags ?: 0
+                if (flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0 && flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0) {
+                    runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                }
+                tab = 0; start("import", uri = uri)
+            } else repo.message.value = "未收到可读取的文件，请一次选择一个音频或视频。"
+        }
+    }
+    fun launchMediaPicker() {
+        val preferred = MediaImportPicker.preferredIntent(context)
+        try {
+            importer.launch(preferred)
+        } catch (_: ActivityNotFoundException) {
+            runCatching { importer.launch(MediaImportPicker.systemIntent()) }
+                .onFailure { repo.message.value = "找不到可用的文件选择器，请安装或启用文件管理器。" }
+        } catch (_: SecurityException) {
+            runCatching { importer.launch(MediaImportPicker.systemIntent()) }
+                .onFailure { repo.message.value = "文件选择器无法打开，请检查文件管理器的权限。" }
         }
     }
     val modelImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) start("importModel", uri = uri) }
@@ -102,7 +121,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
         storagePicker.launch(SoundsStorage.INITIAL_URI)
     }
     fun importMedia() {
-        if (storageReady) importer.launch(arrayOf("audio/*", "video/*")) else authorizeStorage("import")
+        if (storageReady) launchMediaPicker() else authorizeStorage("import")
     }
     fun openProject(id: String) {
         // Opening the current project is navigation too; its selected ID will not emit again.
@@ -121,7 +140,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
         if (storageReady && !task.active && afterStorage.isNotEmpty()) {
             val action = afterStorage; afterStorage = ""
             when (action) {
-                "import" -> importer.launch(arrayOf("audio/*", "video/*"))
+                "import" -> launchMediaPicker()
                 "separate" -> start("separate", afterStorageId)
                 "export" -> { customExport = false; exportSheet = true }
             }
@@ -138,7 +157,11 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                             Text(appName.uppercase(Locale.ROOT), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                             Text(listOf("可可的声音工作室", "我的作品", "设置")[tab], fontSize = 29.sp, fontWeight = FontWeight.Bold)
                         }
-                        Icon(Icons.Rounded.GraphicEq, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                        if (tab == 1) {
+                            IconButton(onClick = { importMedia() }, enabled = !task.active) {
+                                Icon(Icons.Rounded.Add, "导入音频或视频", Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        } else Icon(Icons.Rounded.GraphicEq, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
                 if (task.active) item {
@@ -306,7 +329,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                                 Icon(Icons.Rounded.LibraryMusic, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.primary)
                                 Text("把声音变成作品", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                                 Text("导入后的文件和配比会保存在这里，随时继续调整。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                TextButton(onClick = { tab = 0 }) { Text("去工作室") }
+                                TextButton(onClick = { importMedia() }, enabled = !task.active) { Text("导入音频或视频") }
                             }
                         }
                         projects.forEach { p -> item(key = p.id) {
