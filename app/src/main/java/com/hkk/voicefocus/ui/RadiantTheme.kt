@@ -12,9 +12,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
@@ -85,13 +90,19 @@ fun focusSwitchColors(): SwitchColors {
 
 @Composable
 fun RadiantHost(content: @Composable BoxScope.(Modifier) -> Unit) {
-    val ambient = rememberLayerBackdrop()
     val scene = rememberLayerBackdrop()
     val colors = MaterialTheme.colorScheme
-    Box(Modifier.fillMaxSize().background(colors.background)) {
-        Box(Modifier.matchParentSize().layerBackdrop(ambient).background(Brush.verticalGradient(listOf(
-            colors.background, colors.primary.copy(alpha = .09f), colors.tertiary.copy(alpha = .04f), colors.background
-        ))))
+    var height by remember { mutableIntStateOf(0) }
+    val hostCoordinates = remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val ambientStops = remember(colors.background, colors.primary, colors.tertiary) {
+        listOf(colors.background, colors.primary.copy(alpha = .09f), colors.tertiary.copy(alpha = .04f), colors.background)
+    }
+    val ambientBrush = remember(ambientStops) { Brush.verticalGradient(ambientStops) }
+    val ambient = rememberStaticGlassBackdrop(colors.background, ambientStops, height, hostCoordinates)
+    Box(Modifier.fillMaxSize().background(colors.background)
+        .onSizeChanged { height = it.height }
+        .onGloballyPositioned { hostCoordinates.value = it }) {
+        Box(Modifier.matchParentSize().background(ambientBrush))
         CompositionLocalProvider(LocalAmbient provides ambient, LocalContentBackdrop provides scene) {
             content(Modifier.layerBackdrop(scene))
         }
@@ -104,10 +115,32 @@ fun Modifier.glassSurface(floating: Boolean = false, radius: Int = 26): Modifier
     val base = MaterialTheme.colorScheme.surface
     val edge = MaterialTheme.colorScheme.outlineVariant
     val backdrop = if (floating) LocalContentBackdrop.current else LocalAmbient.current
+    if (!floating && Build.VERSION.SDK_INT >= 31) {
+        val coordinates = remember { mutableStateOf<LayoutCoordinates?>(null, neverEqualPolicy()) }
+        // A cached bitmap alone is insufficient if drawBackdrop still records its offscreen,
+        // mask-blurred shadow and highlight layers on every draw. Plain panels bypass those nodes.
+        return this
+            .shadow(12.dp, shape, clip = false,
+                ambientColor = Color.Black.copy(alpha = .24f),
+                spotColor = Color.Black.copy(alpha = .24f))
+            .clip(shape)
+            .onGloballyPositioned { coordinates.value = it }
+            .drawWithCache {
+                onDrawBehind {
+                    with(backdrop) { drawBackdrop(this@onDrawBehind, coordinates.value) }
+                    drawRect(base.copy(alpha = .66f))
+                }
+            }
+            .border(.7.dp, edge.copy(alpha = .7f), shape)
+    }
     return if (Build.VERSION.SDK_INT >= 31) {
         drawBackdrop(backdrop = backdrop, shape = { shape }, effects = {
-            vibrancy(); blur(if (floating) 20.dp.toPx() else 16.dp.toPx())
-            if (floating && Build.VERSION.SDK_INT >= 33) lens(5.dp.toPx(), 9.dp.toPx())
+            // Static panels already sample a cached, pre-blurred ambient texture.
+            // Floating surfaces keep their live content sampling and effects.
+            if (floating) {
+                vibrancy(); blur(20.dp.toPx())
+                if (Build.VERSION.SDK_INT >= 33) lens(5.dp.toPx(), 9.dp.toPx())
+            }
         }, onDrawSurface = { drawRect(base.copy(alpha = if (floating) .7f else .66f)) })
             .border(.7.dp, edge.copy(alpha = .7f), shape)
     } else clip(shape).background(base).border(.7.dp, edge, shape)
@@ -121,8 +154,8 @@ fun GlassPanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val interaction = if (onClick != null) {
-        // Match the whole panel's outline, including its padding, instead of a rectangular text area.
-        Modifier.clip(RoundedCornerShape(26.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        // The outer surface already clips both content and press feedback to the full card shape.
+        Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
     } else Modifier
     Column(modifier.fillMaxWidth().glassSurface().then(interaction).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
 }
