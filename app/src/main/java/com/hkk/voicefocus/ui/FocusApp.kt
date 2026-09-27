@@ -173,7 +173,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                             }
                             TextButton(onClick = { ProcessingService.cancel(context) }) { Text("取消") }
                         }
-                        LinearProgressIndicator(progress = { task.progress }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape))
+                        LinearProgressIndicator(progress = { task.progress }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape), drawStopIndicator = {})
                     }
                 }
                 if (!storageReady && !task.active && tab != 2) item {
@@ -272,7 +272,9 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                                             }
                                         }
                                         AudioWave(project.waveform, playback.frame.toFloat() / project.frames, !task.active) { repo.player.seek((it * project.frames).toLong()) }
-                                        Slider(value = (playback.frame.toFloat() / project.frames).coerceIn(0f, 1f), onValueChange = { repo.player.seek((it * project.frames).toLong()) }, enabled = !task.active, modifier = Modifier.semantics { contentDescription = "播放进度" })
+                                        Slider(value = (playback.frame.toFloat() / project.frames).coerceIn(0f, 1f), onValueChange = { repo.player.seek((it * project.frames).toLong()) }, enabled = !task.active,
+                                            track = { state -> SliderDefaults.Track(sliderState = state, enabled = !task.active, drawStopIndicator = null) },
+                                            modifier = Modifier.semantics { contentDescription = "播放进度" })
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                             Text(time(playback.frame), style = MaterialTheme.typography.labelMedium)
                                             FilledIconButton(onClick = { repo.player.play(repo.store, project) }, enabled = !task.active, modifier = Modifier.size(52.dp)) {
@@ -447,6 +449,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
 @Composable
 private fun StemControl(stem: Stem, enabled: Boolean, onGain: (Float) -> Unit, onFinished: () -> Unit, onMute: () -> Unit, onNumber: () -> Unit) {
     val color = when (stem.id) { "guitar" -> Color(0xFFAE763A); "piano" -> Color(0xFF7E77B1); "drums" -> Color(0xFFBD6A60); "bass" -> Color(0xFF579281); else -> MaterialTheme.colorScheme.primary }
+    val sliderColors = SliderDefaults.colors(thumbColor = color, activeTrackColor = color)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(color))
@@ -456,7 +459,9 @@ private fun StemControl(stem: Stem, enabled: Boolean, onGain: (Float) -> Unit, o
             TextButton(onClick = onNumber, enabled = enabled, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("${(stem.gain * 100).roundToInt()}%", fontWeight = FontWeight.Bold, color = color) }
         }
         Slider(value = stem.gain, onValueChange = onGain, onValueChangeFinished = onFinished, valueRange = 0f..2f, enabled = enabled,
-            colors = SliderDefaults.colors(thumbColor = color, activeTrackColor = color), modifier = Modifier.semantics { contentDescription = "${stem.name}音量" })
+            colors = sliderColors,
+            track = { state -> SliderDefaults.Track(sliderState = state, enabled = enabled, colors = sliderColors, drawStopIndicator = null) },
+            modifier = Modifier.semantics { contentDescription = "${stem.name}音量" })
     }
 }
 
