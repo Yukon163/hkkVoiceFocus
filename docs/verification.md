@@ -1,0 +1,52 @@
+# 验证记录 · 2026-09-27
+
+设备：MEIZU 21，Android 14 / API 34，arm64-v8a。
+
+## 构建
+
+`gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` 成功。5 项 JVM 测试通过，Lint 无错误；保留依赖有更新、KTX 建议等非阻断警告。
+
+## 真实模型与媒体链路
+
+`OfflinePipelineTest.actualModelDecodesSeparatesRemixesAndExportsVideo`：
+
+- 首先测试 12 秒钢琴弹唱视频，六轨推理与全部导出通过。
+- 将输入换为完整约 70 秒视频，关闭 ORT CPU arena 和 memory pattern 后重测通过；该次测试总耗时 209.176 秒，包含分离、四种导出和回读。
+- 每条音轨长度与解码后源音频一致。
+- 在首尾及重叠接缝检查全轨 100% 混合，逐样本重建误差小于 2e-6。
+- WAV、M4A、MP4、ZIP 均生成有效文件；M4A 解码回读时长检查通过。
+
+`MediaFormatTest.importsCommonFormatsAndResamplesMonoToStereo`：6.611 秒，通过 48 kHz 单声道 PCM16 WAV、44.1 kHz PCM24 双声道 WAV、32 kHz 单声道 MP3、48 kHz FLAC、Ogg Opus 和 WebM Opus 的导入。验证时长、非静音、有限数值，以及单声道转双声道一致性。
+
+现有听感样本是钢琴弹唱。吉他、尤克里里的实际分离听感需要对应录音评估；模型没有独立 ukulele 标签。
+
+## 通过界面操作验证
+
+- 系统文档选择器导入完整视频并复制到应用私有项目目录。
+- 前台服务完成完整视频两轨分离，过程中可以切换设置页面。
+- 深色模式文字与状态栏可读，随后恢复跟随系统。
+- 播放状态、时间推进、精确百分比弹窗可用；钢琴伴奏 60% → 45% 已写入项目 JSON。
+- 从导出面板选择 MP4，通过系统文件选择器保存成功。
+- 导出文件包含 H.264 原画面和 44.1 kHz 双声道 AAC，容器时长 69.915 秒。
+- 使用 FFmpeg 对原始与导出视频流做 SHA-256：均为 `a716ad16247d0d9c5465c9dd522a975d6adb4b760e3859133b7593b07e8d6fa8`，画面流没有重编码或损失。
+
+## 修复的实测问题
+
+初始 ORT 默认 arena 在长片段处理中保留大量临时内存，进程 PSS 达约 4.5 GB，触发 Flyme 的 `EXCESSIVE RESOURCE USAGE` 终止。关闭 arena / memory pattern、限制到两个线程后，完整视频复测与前台服务流程均成功；处理中一次观测 PSS 为约 1.1 GB。这是单机观测，不是所有设备的峰值承诺。
+
+## 未覆盖
+
+- 尚未进行所有 Android 版本、全部硬件编解码器和所有视频容器的设备矩阵测试。
+- 手机内的 HTTP 下载/断点续传未消耗移动流量进行实测；测试模型从电脑导入，Android 端 SHA-256 校验通过。
+- 当前没有同时混合吉他和尤克里里的独立 ukulele 模型，界面不会声称提供该声部。
+
+测试日志、模型下载副本和截图保存在被 Git 忽略的 `work/` 中。测试素材及模型不包含在源码包内。
+
+## 1.1.1 保存目录与底栏调整
+
+- 默认导出目录改为 Sounds；可恢复工程保存至 Sounds/VoiceFocus/Projects，已有四个工程已同步。
+- `SoundsStorageTest` 在真机上通过（2.96 秒）：公共 WAV/配置写入、配比更新、隔离测试缓存丢失后的逐样本恢复、取消替换时保留旧工程、导出 URI 位于 Sounds。
+- 底栏代码移植自 AHUTong 0492acc0，移植时已检查拖动切换并录制动画。
+- 按最新要求，按钮和其他页面样式恢复第一版，只保留底栏移植与 Sounds 功能。
+- 修正版本 1.1.1 已完成构建、JVM 测试和 Lint，并安装至 MEIZU 21。
+- 用户要求停止代理测试，后续界面与默认导出手测由用户完成，见 manual-checks.md。
