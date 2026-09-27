@@ -26,7 +26,9 @@ Android 离线音轨分离与混音工具。Kotlin + Jetpack Compose。按钮、
 
 ## 运行
 
-Android Studio 打开项目，使用 JDK 17、Android SDK 36。最低 Android 8.0（API 26），支持 arm64-v8a 和 x86_64。
+Android Studio 打开项目，使用 JDK 17、Android SDK 36。最低 Android 8.0（API 26），Debug 与 Release 均仅打包 `arm64-v8a`，用于 64 位 ARM 手机或 ARM64 模拟器。
+
+ONNX Runtime 是加载 ONNX 模型并执行推理计算的本地引擎，本应用使用它完成手机端音轨分离。APK 包含它的 ARM64 原生库；模型权重仍在首次使用时另行下载。Release 保持启用 R8 混淆；过滤掉 x86_64 可避免同一 APK 携带第二套大型推理库。
 
 ```powershell
 adb devices
