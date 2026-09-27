@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hkk.voicefocus.*
+import com.hkk.voicefocus.R
 import com.hkk.voicefocus.ui.radiant.components.*
 import com.hkk.voicefocus.audio.*
 import com.hkk.voicefocus.data.*
@@ -54,6 +56,7 @@ import kotlin.math.*
 @Composable
 fun FocusApp(vm: FocusViewModel = viewModel()) {
     val context = LocalContext.current
+    val appName = stringResource(R.string.app_name)
     val repo = vm.repo
     val projects by repo.projects.collectAsStateWithLifecycle()
     val selected by repo.selected.collectAsStateWithLifecycle()
@@ -132,7 +135,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text("VOICE FOCUS", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                            Text(appName.uppercase(Locale.ROOT), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                             Text(listOf("可可的声音工作室", "我的作品", "设置")[tab], fontSize = 29.sp, fontWeight = FontWeight.Bold)
                         }
                         Icon(Icons.Rounded.GraphicEq, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
@@ -361,7 +364,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                         }
                         item {
                             TextButton(onClick = { licensesVisible = true }) { Text("模型来源与开源许可") }
-                            Text("Voice Focus ${BuildConfig.VERSION_NAME}\n声音留在你的设备里。", Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            Text("$appName ${BuildConfig.VERSION_NAME}\n声音留在你的设备里。", Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
                     }
                 }

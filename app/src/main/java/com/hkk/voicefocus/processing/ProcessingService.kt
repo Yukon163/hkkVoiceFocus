@@ -179,7 +179,7 @@ class ProcessingService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val cancel = PendingIntent.getService(this, 1, Intent(this, ProcessingService::class.java).setAction("cancel"), PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, "processing").setSmallIcon(R.drawable.ic_app)
-            .setContentTitle("Voice Focus · $title").setContentText("正在手机上处理音频")
+            .setContentTitle("${getString(R.string.app_name)} · $title").setContentText("正在手机上处理音频")
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
             .setProgress(100, (progress * 100).roundToInt(), progress == 0f)
             .addAction(0, "取消", cancel).build()

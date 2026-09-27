@@ -1,4 +1,4 @@
-# hkkVoiceFocus
+# KK Voice Focus
 
 Android 离线音轨分离与混音工具。Kotlin + Jetpack Compose。按钮、配色和页面样式沿用第一版；底部导航直接移植 AHUTong Radiant 的胶囊、按压高光、阻尼拖动、弹簧回弹与折射动画。工程位于 `D:\code\hkkVoiceFocus`。
 
