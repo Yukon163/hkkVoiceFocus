@@ -12,9 +12,7 @@ class FocusViewModel(app: Application) : AndroidViewModel(app) {
     val repo = app.repository
     private val prefs = app.getSharedPreferences("settings", 0)
     val theme = MutableStateFlow(prefs.getString("theme", "system")!!)
-    val glass = MutableStateFlow(prefs.getBoolean("glass", true))
     fun theme(value: String) { theme.value = value; prefs.edit().putString("theme", value).apply() }
-    fun glass(value: Boolean) { glass.value = value; prefs.edit().putBoolean("glass", value).apply() }
     fun change(p: Project, persist: Boolean = true) {
         repo.update(p.copy(modified = System.currentTimeMillis()), false)
         if (persist) save(p)
@@ -25,7 +23,7 @@ class FocusViewModel(app: Application) : AndroidViewModel(app) {
     } }
     fun preset(p: Project, kind: String) = change(p.copy(stems = p.stems.map {
         it.copy(gain = when (kind) { "focus" -> if (it.id == "vocals") 1.2f else .45f; else -> 1f },
-            muted = (kind == "voice" && it.id != "vocals") || (kind == "music" && it.id == "vocals"), solo = false)
+            muted = (kind == "voice" && it.id != "vocals") || (kind == "music" && it.id == "vocals"))
     }))
     fun delete(p: Project) { viewModelScope.launch(Dispatchers.IO) { runCatching { repo.delete(p) }.onFailure { repo.message.value = it.message } } }
     override fun onCleared() { repo.player.pause() }

@@ -64,7 +64,6 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
     val message by repo.message.collectAsStateWithLifecycle()
     val exported by repo.exported.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
-    val glass by vm.glass.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var exportSheet by remember { mutableStateOf(false) }
     var exportFormat by rememberSaveable { mutableStateOf("m4a") }
@@ -102,6 +101,11 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
     fun importMedia() {
         if (storageReady) importer.launch(arrayOf("audio/*", "video/*")) else authorizeStorage("import")
     }
+    fun openProject(id: String) {
+        // Opening the current project is navigation too; its selected ID will not emit again.
+        if (repo.selected.value != id) repo.select(id)
+        tab = 0
+    }
     val save = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         result.data?.data?.let { if (result.resultCode == android.app.Activity.RESULT_OK) start("export", exportId, it, exportFormat) }
     }
@@ -122,14 +126,14 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
     }
     LaunchedEffect(Unit) { if (storageReady && projects.isEmpty() && !task.active) start("storageRefresh") }
 
-    FocusTheme(theme, glass) {
+    FocusTheme(theme) {
         RadiantHost { capture ->
             LazyColumn(Modifier.fillMaxSize().then(capture).statusBarsPadding(), state = listState, contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 126.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text("VOICE FOCUS", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                            Text(listOf("声音工作室", "我的作品", "设置")[tab], fontSize = 29.sp, fontWeight = FontWeight.Bold)
+                            Text(listOf("可可的声音工作室", "我的作品", "设置")[tab], fontSize = 29.sp, fontWeight = FontWeight.Bold)
                         }
                         Icon(Icons.Rounded.GraphicEq, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                     }
@@ -237,7 +241,8 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text("对比原声", fontSize = 12.sp)
                                                 Spacer(Modifier.width(8.dp))
-                                                Switch(compare, onCheckedChange = { compare = it; repo.player.original = it }, enabled = !task.active)
+                                                Switch(compare, onCheckedChange = { compare = it; repo.player.original = it }, enabled = !task.active,
+                                                    colors = focusSwitchColors())
                                             }
                                         }
                                         AudioWave(project.waveform, playback.frame.toFloat() / project.frames, !task.active) { repo.player.seek((it * project.frames).toLong()) }
@@ -268,7 +273,6 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                                             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
                                             StemControl(stem, !task.active, onGain = { vm.gains(repo.get(project.id), stem.id, it) }, onFinished = { vm.save(project) },
                                                 onMute = { vm.change(project.copy(stems = project.stems.map { if (it.id == stem.id) it.copy(muted = !it.muted) else it })) },
-                                                onSolo = { vm.change(project.copy(stems = project.stems.map { if (it.id == stem.id) it.copy(solo = !it.solo) else it })) },
                                                 onNumber = { numeric = stem; numericValue = (stem.gain * 100).roundToInt().toString() })
                                         }
                                     }
@@ -294,7 +298,6 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                         }
                     }
                     1 -> {
-                        item { Text("工程目录：Sounds/VoiceFocus/Projects/", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         if (projects.isEmpty()) item {
                             GlassPanel {
                                 Icon(Icons.Rounded.LibraryMusic, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.primary)
@@ -304,9 +307,9 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                             }
                         }
                         projects.forEach { p -> item(key = p.id) {
-                            GlassPanel {
+                            GlassPanel(onClick = { openProject(p.id) }, enabled = !task.active) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f).clickable(enabled = !task.active) { repo.select(p.id) }, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                         Text(p.name, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                                         Text("${SimpleDateFormat("MM月dd日 HH:mm", Locale.CHINA).format(Date(p.created))} · ${p.status}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         if (p.frames > 0) Text("${time(p.frames)} · ${if (p.mode == "multi") "六轨分离" else "弹唱分离"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
@@ -342,14 +345,11 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                         item {
                             GlassPanel {
                                 Text("外观", fontWeight = FontWeight.SemiBold)
+                                Text("固定青蓝主题，仅切换深浅色。", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色").forEach { (value, label) ->
                                         FilterChip(selected = theme == value, onClick = { vm.theme(value) }, label = { Text(label) })
                                     }
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) { Text("Radiant 玻璃效果"); Text("柔和材质与浮动导航", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                    Switch(glass, vm::glass)
                                 }
                             }
                         }
@@ -399,7 +399,9 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
                 }
             }
         }
-        delete?.let { p -> AlertDialog(onDismissRequest = { delete = null }, title = { Text("删除这个项目？") }, text = { Text("将删除 Sounds 中的这份工程及应用工作缓存。已导出的音视频文件会保留。") }, confirmButton = { TextButton(onClick = { vm.delete(p); delete = null }) { Text("删除") } }, dismissButton = { TextButton(onClick = { delete = null }) { Text("保留") } }) }
+        delete?.let { p -> AlertDialog(onDismissRequest = { delete = null }, title = { Text("删除这个项目？") }, text = { Text("将删除 Sounds 中的这份工程及应用工作缓存。已导出的音视频文件会保留。") }, confirmButton = {
+            TextButton(onClick = { vm.delete(p); delete = null }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
+        }, dismissButton = { TextButton(onClick = { delete = null }) { Text("保留") } }) }
         if (licensesVisible) {
             val text = remember { context.assets.list("licenses").orEmpty().joinToString("\n\n") { name ->
                 "$name\n" + context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
@@ -417,7 +419,7 @@ fun FocusApp(vm: FocusViewModel = viewModel()) {
 }
 
 @Composable
-private fun StemControl(stem: Stem, enabled: Boolean, onGain: (Float) -> Unit, onFinished: () -> Unit, onMute: () -> Unit, onSolo: () -> Unit, onNumber: () -> Unit) {
+private fun StemControl(stem: Stem, enabled: Boolean, onGain: (Float) -> Unit, onFinished: () -> Unit, onMute: () -> Unit, onNumber: () -> Unit) {
     val color = when (stem.id) { "guitar" -> Color(0xFFAE763A); "piano" -> Color(0xFF7E77B1); "drums" -> Color(0xFFBD6A60); "bass" -> Color(0xFF579281); else -> MaterialTheme.colorScheme.primary }
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -425,7 +427,6 @@ private fun StemControl(stem: Stem, enabled: Boolean, onGain: (Float) -> Unit, o
             Spacer(Modifier.width(10.dp))
             Text(stem.name, Modifier.weight(1f), fontWeight = FontWeight.Medium)
             IconButton(onClick = onMute, enabled = enabled) { Icon(if (stem.muted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp, "${stem.name}${if (stem.muted) "取消静音" else "静音"}", Modifier.size(20.dp), if (stem.muted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
-            TextButton(onClick = onSolo, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(if (stem.solo) "独听中" else "独听", fontSize = 12.sp, fontWeight = if (stem.solo) FontWeight.Bold else FontWeight.Normal) }
             TextButton(onClick = onNumber, enabled = enabled, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("${(stem.gain * 100).roundToInt()}%", fontWeight = FontWeight.Bold, color = color) }
         }
         Slider(value = stem.gain, onValueChange = onGain, onValueChangeFinished = onFinished, valueRange = 0f..2f, enabled = enabled,

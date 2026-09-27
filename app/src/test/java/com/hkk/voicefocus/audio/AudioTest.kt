@@ -44,10 +44,10 @@ class AudioTest {
         assertTrue(result.all { abs(it) <= .98001f })
         assertEquals(result[2] / 2f, result[3], 1e-6f)
     }
-    @Test fun muteWinsOverSoloAndSoloSuppressesOtherTracks() {
-        val p = Project("id", "test", stems = listOf(Stem("vocals", "v", 1.2f, solo = true), Stem("guitar", "g", .4f)))
+    @Test fun muteSuppressesOnlyMutedTracks() {
+        val p = Project("id", "test", stems = listOf(Stem("vocals", "v", 1.2f), Stem("guitar", "g", .4f, muted = true)))
         assertArrayEquals(floatArrayOf(1.2f, 0f), p.gains(), 0f)
-        assertArrayEquals(floatArrayOf(0f, 0f), p.copy(stems = p.stems.map { it.copy(muted = true) }).gains(), 0f)
+        assertArrayEquals(floatArrayOf(1.2f, .4f), p.copy(stems = p.stems.map { it.copy(muted = false) }).gains(), 0f)
     }
     @Test fun pcmHandlesPartialReadsAndWavHasCorrectHeader() {
         val folder = Files.createTempDirectory("voicefocus").toFile()

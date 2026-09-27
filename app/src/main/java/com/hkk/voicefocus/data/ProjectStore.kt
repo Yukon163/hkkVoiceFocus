@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-data class Stem(val id: String, val name: String, val gain: Float = 1f, val muted: Boolean = false, val solo: Boolean = false)
+data class Stem(val id: String, val name: String, val gain: Float = 1f, val muted: Boolean = false)
 data class Project(
     val id: String, val name: String, val created: Long = System.currentTimeMillis(),
     val hasVideo: Boolean = false, val frames: Long = 0, val mode: String = "duet",
@@ -19,8 +19,7 @@ data class Project(
 ) {
     val ready get() = stems.isNotEmpty() && status == "已完成"
     fun gains(): FloatArray {
-        val anySolo = stems.any { it.solo }
-        return stems.map { if (it.muted || (anySolo && !it.solo)) 0f else it.gain }.toFloatArray()
+        return stems.map { if (it.muted) 0f else it.gain }.toFloatArray()
     }
 }
 
@@ -71,7 +70,7 @@ class ProjectStore(context: Context) {
             .put("waveform", JSONArray(p.waveform))
         json.put("stems", JSONArray().apply { p.stems.forEach {
             put(JSONObject().put("id", it.id).put("name", it.name).put("gain", it.gain)
-                .put("muted", it.muted).put("solo", it.solo))
+                .put("muted", it.muted))
         } })
         return json
     }
@@ -96,7 +95,8 @@ class ProjectStore(context: Context) {
                     require(id in listOf("vocals", "instrumental", "guitar", "piano", "bass", "drums", "other"))
                     val gain = it.optDouble("gain", 1.0).toFloat()
                     require(gain.isFinite())
-                    Stem(id, it.getString("name"), gain.coerceIn(0f, 2f), it.optBoolean("muted"), it.optBoolean("solo"))
+                    // Ignore legacy solo flags so old projects cannot retain an invisible solo state.
+                    Stem(id, it.getString("name"), gain.coerceIn(0f, 2f), it.optBoolean("muted"))
                 } }, (0 until w.length()).map { w.getDouble(it).toFloat() }, j.optLong("modified", j.getLong("created")))
     }
 

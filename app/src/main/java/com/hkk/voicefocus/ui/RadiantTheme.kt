@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -27,10 +30,9 @@ import com.hkk.voicefocus.ui.radiant.theme.rememberLiquidGlassTokens
 
 val LocalAmbient = staticCompositionLocalOf<Backdrop> { emptyBackdrop() }
 val LocalContentBackdrop = staticCompositionLocalOf<Backdrop> { emptyBackdrop() }
-val LocalGlass = staticCompositionLocalOf { true }
 
 @Composable
-fun FocusTheme(mode: String, glass: Boolean, content: @Composable () -> Unit) {
+fun FocusTheme(mode: String, content: @Composable () -> Unit) {
     val dark = mode == "dark" || (mode == "system" && isSystemInDarkTheme())
     val activity = LocalActivity.current
     val view = LocalView.current
@@ -42,6 +44,7 @@ fun FocusTheme(mode: String, glass: Boolean, content: @Composable () -> Unit) {
             }
         }
     }
+    // Fixed teal on every device; the system preference controls light/dark mode only.
     val scheme = if (dark) darkColorScheme(
         primary = Color(0xFF8BD7DF), onPrimary = Color(0xFF00363D), primaryContainer = Color(0xFF164A51),
         secondary = Color(0xFFA8CBD2), secondaryContainer = Color(0xFF334C54), onSecondaryContainer = Color(0xFFD4EBEF),
@@ -56,9 +59,28 @@ fun FocusTheme(mode: String, glass: Boolean, content: @Composable () -> Unit) {
         outlineVariant = Color(0xFFDAE5E8)
     )
     MaterialTheme(colorScheme = scheme, shapes = Shapes(medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(28.dp))) {
-        val tokens = rememberLiquidGlassTokens(glass)
-        CompositionLocalProvider(LocalGlass provides glass, LocalLiquidGlassTokens provides tokens, LocalContentColor provides scheme.onSurface, content = content)
+        val tokens = rememberLiquidGlassTokens(enabled = true)
+        CompositionLocalProvider(LocalLiquidGlassTokens provides tokens, LocalContentColor provides scheme.onSurface, content = content)
     }
+}
+
+@Composable
+fun focusSwitchColors(): SwitchColors {
+    val colors = MaterialTheme.colorScheme
+    return SwitchDefaults.colors(
+        checkedThumbColor = colors.onPrimary,
+        checkedTrackColor = colors.primary,
+        checkedBorderColor = Color.Transparent,
+        uncheckedThumbColor = colors.primary.copy(alpha = .85f).compositeOver(colors.surface),
+        uncheckedTrackColor = colors.primary.copy(alpha = .12f).compositeOver(colors.surface),
+        uncheckedBorderColor = colors.primary.copy(alpha = .35f),
+        disabledCheckedThumbColor = colors.surface,
+        disabledCheckedTrackColor = colors.primary.copy(alpha = .22f).compositeOver(colors.surface),
+        disabledCheckedBorderColor = Color.Transparent,
+        disabledUncheckedThumbColor = colors.primary.copy(alpha = .38f).compositeOver(colors.surface),
+        disabledUncheckedTrackColor = colors.primary.copy(alpha = .05f).compositeOver(colors.surface),
+        disabledUncheckedBorderColor = colors.primary.copy(alpha = .12f),
+    )
 }
 
 @Composable
@@ -82,7 +104,7 @@ fun Modifier.glassSurface(floating: Boolean = false, radius: Int = 26): Modifier
     val base = MaterialTheme.colorScheme.surface
     val edge = MaterialTheme.colorScheme.outlineVariant
     val backdrop = if (floating) LocalContentBackdrop.current else LocalAmbient.current
-    return if (LocalGlass.current && Build.VERSION.SDK_INT >= 31) {
+    return if (Build.VERSION.SDK_INT >= 31) {
         drawBackdrop(backdrop = backdrop, shape = { shape }, effects = {
             vibrancy(); blur(if (floating) 20.dp.toPx() else 16.dp.toPx())
             if (floating && Build.VERSION.SDK_INT >= 33) lens(5.dp.toPx(), 9.dp.toPx())
@@ -92,6 +114,15 @@ fun Modifier.glassSurface(floating: Boolean = false, radius: Int = 26): Modifier
 }
 
 @Composable
-fun GlassPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().glassSurface().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
+fun GlassPanel(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val interaction = if (onClick != null) {
+        // Match the whole panel's outline, including its padding, instead of a rectangular text area.
+        Modifier.clip(RoundedCornerShape(26.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+    } else Modifier
+    Column(modifier.fillMaxWidth().glassSurface().then(interaction).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
 }
